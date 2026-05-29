@@ -16,4 +16,7 @@ void led_error(void);
 
 void long_purple(void);
 
+void glimmer(void);
+void glimmerRed(void);
+
 #endif

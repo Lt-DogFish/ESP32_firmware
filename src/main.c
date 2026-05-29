@@ -15,7 +15,9 @@ void app_main(void)
 {
     led_init();
     wifi_init();
-    vTaskDelay(1000);
-
+    glimmerRed();
+    glimmerRed();
+    glimmerRed();
+    vTaskDelay(pdMS_TO_TICKS(1000));
     xTaskCreate( ota_task, "ota_task", 8192, NULL, 5, NULL);
 }

@@ -179,18 +179,36 @@ void led_error(void)
 
 void glimmer(void){
 
-	set_color(20, 100, 0);
+	set_color(100, 100, 0);
     vTaskDelay(pdMS_TO_TICKS(50));
     led_off();
     vTaskDelay(pdMS_TO_TICKS(25));
 
-	set_color(20, 100, 0);
+	set_color(100, 100, 0);
     vTaskDelay(pdMS_TO_TICKS(50));
     led_off();
     vTaskDelay(pdMS_TO_TICKS(25));
 
-    set_color(20, 100, 0);
+    set_color(100, 100, 0);
     vTaskDelay(pdMS_TO_TICKS(50));
     led_off();
     vTaskDelay(pdMS_TO_TICKS(1800));
     }
+    
+    void glimmerRed(void){
+
+		set_color(100, 0, 0);
+		vTaskDelay(pdMS_TO_TICKS(50));
+		led_off();
+		vTaskDelay(pdMS_TO_TICKS(25));
+	
+		set_color(100, 0, 0);
+		vTaskDelay(pdMS_TO_TICKS(50));
+		led_off();
+		vTaskDelay(pdMS_TO_TICKS(25));
+	
+		set_color(100, 0, 0);
+		vTaskDelay(pdMS_TO_TICKS(50));
+		led_off();
+		vTaskDelay(pdMS_TO_TICKS(1800));
+		}

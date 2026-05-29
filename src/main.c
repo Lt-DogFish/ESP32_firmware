@@ -15,7 +15,7 @@ void app_main(void)
 {
     led_init();
     wifi_init();
-    vTaskDelay(5000);
+    vTaskDelay(1000);
 
     xTaskCreate( ota_task, "ota_task", 8192, NULL, 5, NULL);
 }

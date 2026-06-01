@@ -192,7 +192,6 @@ void glimmer(void){
     set_color(100, 100, 0);
     vTaskDelay(pdMS_TO_TICKS(50));
     led_off();
-    vTaskDelay(pdMS_TO_TICKS(1800));
     }
     
     void glimmerRed(void){

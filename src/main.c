@@ -73,8 +73,13 @@ void publish_birth_message(const char *mac, const char *version)
 }
 
 // Helper to get a clean, unique string ID from the chip
-// Static allocation ensures the memory remains allocated throughout execution
+// allocation ensures the memory remains allocated throughout execution
 static char device_mac_str[13];
+// Expose a clean function so that my_mqtt can fetch the MAC string without directly accessing the variable
+const char *get_device_mac_str(void)
+{
+    return device_mac_str;
+}
 
 void fetch_and_format_mac(void)
 {

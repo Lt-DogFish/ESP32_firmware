@@ -9,7 +9,7 @@
 static const char *TAG = "MY_MQTT";
 static esp_mqtt_client_handle_t client_handle = NULL;
 
-extern char device_mac_str[13];
+extern const char *get_device_mac_str(void);
 #define FIRMWARE_VERSION "v1.0.0"
 
 // The asynchronous event handler that listens to the broker connection state
@@ -31,16 +31,16 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         char birth_payload[192];
         snprintf(birth_payload, sizeof(birth_payload),
                  "{\"IP\":\"%s\",\"firmware\":\"%s\",\"MacAddress\":\"%s\"}",
-                 ip_str, FIRMWARE_VERSION, device_mac_str);
+                 ip_str, FIRMWARE_VERSION, get_device_mac_str());
 
         // 3. Publish directly using the active event client handle
         // Setting msg_id = 0, qos = 1, and retain = 0
         int msg_id = esp_mqtt_client_publish(client, "esp32/birth", birth_payload, 0, 1, 0);
         ESP_LOGI(TAG, "Sent birth message successfully, msg_id=%d", msg_id);
 
-        // 4. (Optional) Subscribe to your GitOps command topic here as well
+        // 4. Subscribe to GitOps command topic here as well
         char command_topic[64];
-        snprintf(command_topic, sizeof(command_topic), "esp32/commands/%s", device_mac_str);
+        snprintf(command_topic, sizeof(command_topic), "esp32/commands/%s", get_device_mac_str());
         esp_mqtt_client_subscribe(client, command_topic, 1);
         break;
 

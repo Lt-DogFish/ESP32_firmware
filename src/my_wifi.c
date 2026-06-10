@@ -12,8 +12,8 @@
 #include "my_wifi.h"
 #include "my_led.h"
 
-#define WIFI_SSID      "ATTEvwkH9e"
-#define WIFI_PASSWORD  "t85xxr82m?8h"
+#define WIFI_SSID "ATTEvwkH9e"
+#define WIFI_PASSWORD "t85xxr82m?8h"
 
 static const char *TAG = "MY_WIFI";
 
@@ -39,13 +39,29 @@ static void wifi_event_handler(
     }
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
     {
-        ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
+        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
 
         ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
         long_purple();
 
         xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
     }
+}
+
+// Helper to get the current IP address as a string
+void get_wifi_ip_string(char *ip_buf, size_t buf_len)
+{
+    esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (netif)
+    {
+        esp_netif_ip_info_t ip_info;
+        if (esp_netif_get_ip_info(netif, &ip_info) == ESP_OK)
+        {
+            snprintf(ip_buf, buf_len, IPSTR, IP2STR(&ip_info.ip));
+            return;
+        }
+    }
+    snprintf(ip_buf, buf_len, "0.0.0.0");
 }
 
 void wifi_init(void)

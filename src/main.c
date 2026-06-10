@@ -114,10 +114,6 @@ void app_main(void)
     my_mqtt_init("mqtt://192.168.1.181:1883");
     vTaskDelay(pdMS_TO_TICKS(1000)); // Allow MQTT connection to clear
 
-    // 5. Announce device birth to the GitOps operator (Run ONCE)
-    publish_birth_message(device_mac_str, FIRMWARE_VERSION);
-    vTaskDelay(pdMS_TO_TICKS(500)); // Short pause to let the birth packet clear the interface
-
     // 5. Spin up the telemetry loop
     xTaskCreate(telemetry_task, "telemetry_task", 4096, (void *)device_mac_str, 5, NULL);
 }

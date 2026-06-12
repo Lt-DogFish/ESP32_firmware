@@ -17,10 +17,7 @@ void glimmer_task(void *pvParameters)
     while (1)
     {
         glimmer();
-
-        // Block the task for exactly 2000 milliseconds (2 seconds)
-        // This yields the CPU back to the operating system during idle time
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }
 
@@ -50,7 +47,7 @@ void telemetry_task(void *pvParameters)
         my_mqtt_publish(topic, payload);
 
         // Delay exactly 1 second
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 

@@ -17,7 +17,7 @@
 
 // LIGHTNING-FAST WIFI PROVISIONING CONFIGURATIONS
 #define TARGET_WIFI_CHANNEL 10                            // router's exact 2.4GHz channel here
-#define ROUTER_BSSID {0x10, 0xC4, 0xCA, 0x2F, 0x6F, 0xF8} // router's AP MAC address here
+#define ROUTER_BSSID {0x10, 0xC4, 0xCA, 0x2F, 0x6F, 0xF4} // router's AP MAC address here
 
 #define STATIC_IP_ADDR "192.168.1.200" // <--- Desired static IP for this ESP32
 #define STATIC_GW_ADDR "192.168.1.254" // <--- Router Gateway

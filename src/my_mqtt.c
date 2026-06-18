@@ -2,15 +2,22 @@
 #include <string.h>
 #include "esp_log.h"
 #include "esp_event.h"
-
+#include "mqtt_client.h" // Ensure full client structures are visible
 #include "my_mqtt.h"
 #include "my_wifi.h"
 
 static const char *TAG = "MY_MQTT";
 static esp_mqtt_client_handle_t client_handle = NULL;
+static EventGroupHandle_t mqtt_event_group = NULL; // Declared here
 
 extern const char *get_device_mac_str(void);
 #define FIRMWARE_VERSION "v1.0.0"
+
+// Linker accessor function implementation
+EventGroupHandle_t get_mqtt_event_group(void)
+{
+    return mqtt_event_group;
+}
 
 // The asynchronous event handler that listens to the broker connection state
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
@@ -23,6 +30,12 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED - Broker Pipe is Ready.");
 
+        // Notify any waiting tasks in main (like telemetry) that the broker is ready
+        if (mqtt_event_group != NULL)
+        {
+            xEventGroupSetBits(mqtt_event_group, MQTT_CONNECTED_BIT);
+        }
+
         // 1. Fetch the IP Address dynamically
         char ip_str[16];
         get_wifi_ip_string(ip_str, sizeof(ip_str));
@@ -33,8 +46,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                  "{\"IP\":\"%s\",\"firmware\":\"%s\",\"MacAddress\":\"%s\"}",
                  ip_str, FIRMWARE_VERSION, get_device_mac_str());
 
-        // 3. Publish directly using the active event client handle
-        // Setting msg_id = 0, qos = 1, and retain = 0
+        // 3. Publish directly using the active event client handle (QoS 1)
         int msg_id = esp_mqtt_client_publish(client, "esp32/birth", birth_payload, 0, 1, 0);
         ESP_LOGI(TAG, "Sent birth message successfully, msg_id=%d", msg_id);
 
@@ -46,15 +58,16 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
     case MQTT_EVENT_DISCONNECTED:
         ESP_LOGW(TAG, "Disconnected from broker. Reconnecting automatically...");
+        if (mqtt_event_group != NULL)
+        {
+            xEventGroupClearBits(mqtt_event_group, MQTT_CONNECTED_BIT);
+        }
         break;
 
     case MQTT_EVENT_DATA:
-        // Triggers instantly when a command falls down from your Python Operator
         ESP_LOGI(TAG, "Incoming Command Received!");
         printf("Topic: %.*s\r\n", event->topic_len, event->topic);
         printf("Payload: %.*s\r\n", event->data_len, event->data);
-
-        // Handle actions here (e.g., checking if data matches "REBOOT")
         break;
 
     case MQTT_EVENT_ERROR:
@@ -68,17 +81,18 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
 void my_mqtt_init(const char *broker_uri)
 {
-    // Configure client spec matching modern ESP-IDF structural layouts
+    // Initialize the event group object for system tracking before launching client
+    if (mqtt_event_group == NULL)
+    {
+        mqtt_event_group = xEventGroupCreate();
+    }
+
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = broker_uri,
     };
 
     client_handle = esp_mqtt_client_init(&mqtt_cfg);
-
-    // Register the event handler to capture connection loops
     esp_mqtt_client_register_event(client_handle, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
-
-    // Fire up the background task engine
     esp_mqtt_client_start(client_handle);
 }
 

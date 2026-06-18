@@ -1,19 +1,30 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/event_groups.h"
 #include "driver/rmt.h"
 #include "esp_err.h"
 #include "esp_mac.h"
+#include "esp_log.h"
 
 #include "my_wifi.h"
 #include "my_ota.h"
 #include "my_led.h"
-#include "my_mqtt.h" // Your new clean wrapper
+#include "my_mqtt.h"
 
-// --- The FreeRTOS Glimmer Task ---
+#define FIRMWARE_VERSION "v1.0.0"
+static const char *TAG = "MAIN_APP";
+
+// Static allocation for unique string device ID
+static char device_mac_str[13];
+
+const char *get_device_mac_str(void)
+{
+    return device_mac_str;
+}
+
 void glimmer_task(void *pvParameters)
 {
-    // The task must run inside an infinite loop so it doesn't instantly exit
     while (1)
     {
         glimmer();
@@ -21,32 +32,24 @@ void glimmer_task(void *pvParameters)
     }
 }
 
-// current firmware version for initial testing
-#define FIRMWARE_VERSION "v1.0.0"
-
 void telemetry_task(void *pvParameters)
 {
-    // Cast the parameter to get our unique MAC address string
     char *device_mac = (char *)pvParameters;
-
     int counter = 0;
     char payload[192];
     char topic[64];
 
-    // Dynamically build the topic path using the MAC address
-    // e.g., "esp32/metrics/4C75251A3B44"
     snprintf(topic, sizeof(topic), "esp32/metrics/%s", device_mac);
 
     while (1)
     {
-        // Construct the JSON metrics payload with the dynamic MAC
         snprintf(payload, sizeof(payload),
                  "{\"device_id\":\"%s\",\"uptime_s\":%d,\"status\":\"OK\"}",
                  device_mac, counter++);
 
         my_mqtt_publish(topic, payload);
 
-        // Delay exactly 1 second
+        // Sustained 1-second cadence
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
@@ -58,64 +61,59 @@ void publish_birth_message(const char *mac, const char *version)
 
     char birth_payload[192];
 
-    // Construct the exact JSON structure your Python operator parses
     snprintf(birth_payload, sizeof(birth_payload),
              "{\"IP\":\"%s\",\"firmware\":\"%s\",\"MacAddress\":\"%s\"}",
              ip_str, version, mac);
 
-    printf("Publishing birth message to esp32/birth: %s\n", birth_payload);
-
-    // Publish to the target topic. Using QoS 1 ensures delivery.
+    ESP_LOGI(TAG, "Publishing birth message to esp32/birth: %s", birth_payload);
     my_mqtt_publish("esp32/birth", birth_payload);
-}
-
-// Helper to get a clean, unique string ID from the chip
-// allocation ensures the memory remains allocated throughout execution
-static char device_mac_str[13];
-// Expose a clean function so that my_mqtt can fetch the MAC string without directly accessing the variable
-const char *get_device_mac_str(void)
-{
-    return device_mac_str;
 }
 
 void fetch_and_format_mac(void)
 {
     uint8_t mac[6];
-    // Fetch the factory-flashed primary Wi-Fi station MAC address
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
-
-    // Convert bytes into a clean uppercase hexadecimal string
     snprintf(device_mac_str, sizeof(device_mac_str), "%02X%02X%02X%02X%02X%02X",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 void app_main(void)
 {
-    // 1. Initialize local hardware components
+    // 1. Initialize local hardware dependencies
     led_init();
-
-    // 2. Fetch the MAC address right away at boot
     fetch_and_format_mac();
     printf("--- Device Booted. MAC Address: %s ---\n", device_mac_str);
 
-    // 3. Launch the Glimmer Task
-    // This instantly creates the background thread and assigns it a 2KB stack frame
-    xTaskCreate(
-        glimmer_task,   // Function pointer to the task code
-        "glimmer_task", // Debug name for the FreeRTOS monitor
-        2048,           // Stack size in bytes (2KB is plenty for RMT operations)
-        NULL,           // Parameter passed into the task (not needed here)
-        5,              // Task priority (1-5 is a solid baseline for low-resource tasks)
-        NULL            // Task handle pointer (not needed unless deleting the task later)
-    );
+    // 2. Launch background hardware UI tasks
+    xTaskCreate(glimmer_task, "glimmer_task", 2048, NULL, 5, NULL);
 
-    // 4. Connect to WiFi and MQTT broker
+    // 3. Fire up the network subsystem
     wifi_init();
-    vTaskDelay(pdMS_TO_TICKS(2000));
 
+    // 4. STALL HERE: Prevent downstream network executions until Wi-Fi layer 3 binding completes
+    ESP_LOGI(TAG, "Holding application layer until static IP binds...");
+    xEventGroupWaitBits(get_wifi_event_group(),
+                        WIFI_CONNECTED_BIT,
+                        pdFALSE,
+                        pdTRUE,
+                        portMAX_DELAY);
+
+    // 5. Secure network configuration verified. Safe to initialize MQTT engine
+    ESP_LOGI(TAG, "IP binding validated. Initializing MQTT Client Subsystem...");
     my_mqtt_init("mqtt://192.168.1.181:1883");
-    vTaskDelay(pdMS_TO_TICKS(1000)); // Allow MQTT connection to clear
 
-    // 5. Spin up the telemetry loop
+    // 6. STALL HERE: Wait until MQTT handshake completes successfully
+    ESP_LOGI(TAG, "Holding telemetry operations until MQTT broker connection completes...");
+    xEventGroupWaitBits(get_mqtt_event_group(),
+                        MQTT_CONNECTED_BIT,
+                        pdFALSE,
+                        pdTRUE,
+                        portMAX_DELAY);
+
+    // 7. Pipe is ready. Emit birth message directly to inform Python Kubernetes Operator
+    publish_birth_message(device_mac_str, FIRMWARE_VERSION);
+
+    // 8. Spin up active loop tasks safely without any metric packet loss
+    ESP_LOGI(TAG, "Launching system telemetry tasks successfully.");
     xTaskCreate(telemetry_task, "telemetry_task", 4096, (void *)device_mac_str, 5, NULL);
 }
